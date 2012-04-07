@@ -26,7 +26,7 @@
 -define(ALERT, 1).
 -define(EMERGENCY, 0).
 -define(LOG_NONE, -1).
-
+-define(MODULE_LOG_LEVEL, "moduleloglevel").
 -define(LEVEL2NUM(Level),
     case Level of
         debug -> ?DEBUG;
