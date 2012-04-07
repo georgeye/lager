@@ -28,6 +28,7 @@
         get_loglevel/1, set_loglevel/2, set_loglevel/3, get_loglevels/0,
         minimum_loglevel/1, posix_error/1,
         safe_format/3, safe_format_chop/3,dispatch_log/8]).
+-export([set_module_log_level/2]).
 
 -type log_level() :: debug | info | notice | warning | error | critical | alert | emergency.
 -type log_level_number() :: 0..7.
@@ -57,6 +58,21 @@ start_ok(App, {error, Reason}) ->
 
 dispatch_log(Severity, Module, Function, Line, Pid, Traces, Format, Args) ->
     {LevelThreshold,TraceFilters} = lager_mochiglobal:get(loglevel,{?LOG_NONE,[]}),
+    Severity_Num = lager_util:level_to_num(Severity),
+    ModuleThreshold = get_module_log_level(Module),
+    case ModuleThreshold of
+        {Ident, Level}  -> 
+                          Mod_File_Level = lager_util:level_to_num(get_loglevel({lager_file_backend, Ident})),
+                          case {Severity_Num =< Level, Severity_Num > Mod_File_Level} of
+                              {true, true} ->
+                                  lager:log_dest(Severity, Module, Function, Line, Pid, 
+                                              lager_util:maybe_utc(lager_util:localtime_ms()),
+                                              [{lager_file_backend, Ident}], Format, Args);
+                              _ -> ok
+                          end;
+        undefined -> ok
+    end,
+
     Result=
     case LevelThreshold >= lager_util:level_to_num(Severity) of
         true -> lager:log(Severity,Module,Function,Line,Pid,
@@ -76,6 +92,14 @@ dispatch_log(Severity, Module, Function, Line, Pid, Traces, Format, Args) ->
                 Format,Args);
         _ -> ok
     end.
+-spec set_module_log_level(atom(), {string(), log_level()}) -> ok | {error, invalid_log_level}.
+set_module_log_level(Module, {Dest, Level}) ->
+    case lists:member(Level, ?LEVELS) of
+        true -> lager_mochiglobal:put(list_to_atom(?MODULE_LOG_LEVEL ++ atom_to_list(Module)), {Dest, lager_util:level_to_num(Level)}), ok;
+        false -> {error, invalid_log_level}
+    end.
+
+get_module_log_level(Module) -> lager_mochiglobal:get(list_to_atom(?MODULE_LOG_LEVEL ++ atom_to_list(Module))).
 
 %% @private
 -spec log(log_level(), atom(), atom(), pos_integer(), pid(), tuple(), string(), list()) ->
