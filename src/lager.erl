@@ -58,21 +58,6 @@ start_ok(App, {error, Reason}) ->
 
 dispatch_log(Severity, Module, Function, Line, Pid, Traces, Format, Args) ->
     {LevelThreshold,TraceFilters} = lager_mochiglobal:get(loglevel,{?LOG_NONE,[]}),
-    Severity_Num = lager_util:level_to_num(Severity),
-    ModuleThreshold = get_module_log_level(Module),
-    case ModuleThreshold of
-        {Ident, Level}  -> 
-                          Mod_File_Level = lager_util:level_to_num(get_loglevel({lager_file_backend, Ident})),
-                          case {Severity_Num =< Level, Severity_Num > Mod_File_Level} of
-                              {true, true} ->
-                                  lager:log_dest(Severity, Module, Function, Line, Pid, 
-                                              lager_util:maybe_utc(lager_util:localtime_ms()),
-                                              [{lager_file_backend, Ident}], Format, Args);
-                              _ -> ok
-                          end;
-        undefined -> ok
-    end,
-
     Result=
     case LevelThreshold >= lager_util:level_to_num(Severity) of
         true -> lager:log(Severity,Module,Function,Line,Pid,
@@ -91,7 +76,27 @@ dispatch_log(Severity, Module, Function, Line, Pid, Traces, Format, Args) ->
                     []),
                 Format,Args);
         _ -> ok
-    end.
+    end,
+    %% move changes to the end so that not mess up crash report
+    Severity_Num = lager_util:level_to_num(Severity),
+    if
+        Severity_Num >=4 ->
+            ModuleThreshold = get_module_log_level(Module),
+            case ModuleThreshold of
+                {Ident, Level}  -> 
+                                  Mod_File_Level = lager_util:level_to_num(get_loglevel({lager_file_backend, Ident})),
+                                  case {Severity_Num =< Level, Severity_Num > Mod_File_Level} of
+                                      {true, true} ->
+                                          lager:log_dest(Severity, Module, Function, Line, Pid, 
+                                                      lager_util:maybe_utc(lager_util:localtime_ms()),
+                                                      [{lager_file_backend, Ident}], Format, Args);
+                                      _ -> ok
+                                  end;
+                undefined -> ok
+            end;
+        true -> ok
+    end.    
+
 -spec set_module_log_level(atom(), {string(), log_level()}) -> ok | {error, invalid_log_level}.
 set_module_log_level(Module, {Dest, Level}) ->
     case lists:member(Level, ?LEVELS) of
