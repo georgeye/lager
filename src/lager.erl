@@ -80,7 +80,7 @@ dispatch_log(Severity, Module, Function, Line, Pid, Traces, Format, Args) ->
     %% move changes to the end so that not mess up crash report
     Severity_Num = lager_util:level_to_num(Severity),
     if
-        Severity_Num >=4 ->
+        Severity_Num > 4 ->
             ModuleThreshold = get_module_log_level(Module),
             case ModuleThreshold of
                 {Ident, Level}  -> 
